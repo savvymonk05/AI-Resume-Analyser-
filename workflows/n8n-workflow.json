@@ -1,0 +1,243 @@
+{
+  "name": "AI Job Hunter Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Job: {{$node[\"Webhook\"].json[\"body\"][\"job\"]}}\nResume Text:\n{{$node[\"Extract from File\"].json[\"text\"]}}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=You are an intelligent ATS (Applicant Tracking System). Follow these steps STRICTLY: -------------------------------------- STEP 1: Extract ONLY technical skills from the RESUME. Rules: - Ignore soft skills (communication, teamwork, etc.) - Ignore tools like VS Code, Figma unless very relevant - Focus on: - Programming languages - Frameworks - Backend technologies - Databases - APIs - Cloud (AWS, Azure, etc.) - Normalize names: - JS → JavaScript - Node → Node.js Return as a clean list. -------------------------------------- STEP 2: Extract REQUIRED technical skills from JOB DESCRIPTION. Rules: - Extract ONLY required skills - Ignore generic words like \"good understanding\", \"team player\" Return as a clean list. -------------------------------------- STEP 3: Compare both lists using LOGIC. Matching rules: - Exact match → 1 - Related/partial match → 0.5 Examples: - Java + Spring Boot → partial - AWS basics → partial AWS - API knowledge → partial REST API - No match → 0 -------------------------------------- STEP 4: Calculate score Match Score = (Total Score / Total Required Skills) * 100 Round to nearest integer. -------------------------------------- STEP 5: Output EXACTLY in this format: Match Score: <number>% Missing Skills: - skill 1 - skill 2 Strengths: - skill 1 - skill 2 Recruiter Message: Short, realistic human-like feedback. -------------------------------------- IMPORTANT: - Do NOT assume skills not present - Do NOT leave score blank - Even if few matches, NEVER return 0 unless truly no overlap Additionally, break down the match score into components:\nAlso suggest 3 specific improvements the candidate should do to increase their score."
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        304,
+        16
+      ],
+      "id": "3144bd48-411f-4ca2-aff4-eecc5ad5b9ea",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        672,
+        -80
+      ],
+      "id": "5b79c0d9-844c-46fd-904a-a44fd5b28b81",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "ok6qE9hYLPYGfP92",
+          "name": "Google Gemini(PaLM) Api account 5"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "data0",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        128,
+        32
+      ],
+      "id": "a81c7abb-fb50-446b-8d2a-e44084acf4d5",
+      "name": "Extract from File"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "resume-upload",
+        "responseMode": "lastNode",
+        "options": {
+          "binaryPropertyName": "data"
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -96,
+        32
+      ],
+      "id": "010cd2c3-98cc-45a9-aa0e-320844ec55b5",
+      "name": "Webhook",
+      "webhookId": "fb3ba547-e9f3-4f9a-9d9d-cbac8df45f7e"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1eJnwhcxNaQm07UYcmRZIfvVo7Kn624YDGe4lmEkfCts",
+          "mode": "list",
+          "cachedResultName": "jobhunteraiagent",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1eJnwhcxNaQm07UYcmRZIfvVo7Kn624YDGe4lmEkfCts/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1eJnwhcxNaQm07UYcmRZIfvVo7Kn624YDGe4lmEkfCts/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ new Date().toISOString() }}",
+            "job_description": "={{ $node[\"Webhook\"].json[\"body\"][\"job\"] }}",
+            "match_score": "={{ $json.text.match(/Match Score:\\s*(\\d+)%/)?.[1] \n\n \"\" }}",
+            "missing_skills": "={{ ($json.text.match(/Missing Skills:\\s*([\\s\\S]*?)\\n\\s*Strengths:/) || [])[1] || \"\" }}",
+            "strengths": "={{ ($json.text.match(/Strengths:\\s*([\\s\\S]*?)\\n\\s*Recruiter Message:/) || [])[1] || \"\" }}",
+            "feedback": "={{ $json.text.split(\"Recruiter Message:\")[1] \n\n \"\" }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "job_description",
+              "displayName": "job_description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "match_score",
+              "displayName": "match_score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "missing_skills",
+              "displayName": "missing_skills",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "strengths",
+              "displayName": "strengths",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "feedback",
+              "displayName": "feedback",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        688,
+        112
+      ],
+      "id": "bc756243-72c9-4275-9e3d-7687058c920a",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CIkZoy0yZOfdijAZ",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "b66bb4cc-5343-4575-adaf-77c9797d419f",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ee5f2cf90b3c3d1cb3a4375023e28a8d26d34b532c1692dd389eb6c5751647be"
+  },
+  "id": "1cu2tAcSY3XbZZQF",
+  "tags": []
+}
