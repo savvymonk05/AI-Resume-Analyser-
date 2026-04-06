@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>AI Resume Analyzer</title>
+
+  <style>
+    body {
+      font-family: Arial;
+      background: #f5f5f5;
+      padding: 40px;
+    }
+
+    .container {
+      max-width: 700px;
+      margin: auto;
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+
+    textarea, input, button {
+      width: 100%;
+      margin-top: 10px;
+      padding: 10px;
+      font-size: 14px;
+    }
+
+    button {
+      background: black;
+      color: white;
+      cursor: pointer;
+      border: none;
+    }
+
+    button:hover {
+      background: #333;
+    }
+
+    #result {
+      margin-top: 20px;
+    }
+
+    .card {
+      background: white;
+      padding: 15px;
+      margin-top: 15px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+
+    .score {
+      text-align: center;
+      background: black;
+      color: #00ff88;
+    }
+
+    .score h2 {
+      font-size: 40px;
+      margin: 0;
+    }
+
+    .grid {
+      display: flex;
+      gap: 10px;
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 5px 10px;
+      margin: 5px;
+      border-radius: 20px;
+      font-size: 12px;
+      background: #eef;
+    }
+
+    .red {
+      background: #ffe5e5;
+      color: red;
+    }
+
+    .green {
+      background: #e5ffe5;
+      color: green;
+    }
+
+    .message {
+      background: #f9f9f9;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="container">
+
+  <h2>🚀 AI Resume Analyzer</h2>
+
+  <form id="uploadForm">
+
+    <label>Job Description:</label>
+    <textarea id="job" rows="6"></textarea>
+
+    <label>Upload Resume (PDF):</label>
+    <input type="file" id="resume" accept=".pdf">
+
+    <button type="submit">Analyze</button>
+
+  </form>
+
+  <h3>Result:</h3>
+  <div id="result">Waiting...</div>
+
+</div>
+
+<script>
+
+document.getElementById("uploadForm").addEventListener("submit", async function(e) {
+  e.preventDefault();
+
+  const job = document.getElementById("job").value;
+  const file = document.getElementById("resume").files[0];
+
+  if (!job || !file) {
+    alert("Please fill all fields");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("job", job);
+  formData.append("data", file);
+
+  document.getElementById("result").innerHTML = "<h2>⏳ Analyzing...</h2>";
+
+  try {
+    const response = await fetch("http://127.0.0.1:5678/webhook-test/resume-upload", {
+      method: "POST",
+      body: formData
+    });
+
+    const raw = await response.text();
+    console.log("RAW RESPONSE:", raw);
+
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      data = raw;
+    }
+
+    let score = "0";
+    let missingSkills = [];
+    let strengths = [];
+    let message = "";
+    let suggestions = [];
+
+    // -----------------------------
+    // JSON MODE
+    // -----------------------------
+    if (typeof data === "object") {
+
+      score = data.match_score || "0";
+
+      // Missing skills
+      if (Array.isArray(data.missing_skills)) {
+        missingSkills = data.missing_skills;
+      } else if (typeof data.missing_skills === "string") {
+        missingSkills = data.missing_skills
+          .split("\n")
+          .map(s => s.replace(/[-•]/g, "").trim())
+          .filter(Boolean);
+      }
+
+      // Strengths
+      if (Array.isArray(data.strengths)) {
+        strengths = data.strengths;
+      } else if (typeof data.strengths === "string") {
+        strengths = data.strengths
+          .split("\n")
+          .map(s => s.replace(/[-•]/g, "").trim())
+          .filter(Boolean);
+      }
+
+      message = data.recruiter_feedback || data.feedback || "";
+
+// 🔥 STEP 1: EXTRACT SUGGESTIONS FIRST
+const suggestionMatch = message.match(/(Improvements?|Suggestions?)[\s:]*([\s\S]*)/i);
+
+if (suggestionMatch) {
+  suggestions = suggestionMatch[2]
+    .split(/\d+\.\s|\n/)
+    .map(s => s
+      .replace(/\*\*/g, "")
+      .replace(/^[^:]+:\s*/, "") // remove titles like "Node.js Proficiency:"
+      .trim()
+    )
+    .filter(s => s && s.length > 5);
+}
+
+// 🔥 STEP 2: THEN CLEAN MESSAGE
+message = message.replace(/(Improvements?|Suggestions?)[\s:]*[\s\S]*/i, "").trim();
+
+      // If JSON already has suggestions (optional future)
+      if (Array.isArray(data.suggestions)) {
+        suggestions = data.suggestions;
+      }
+    }
+
+    // -----------------------------
+    // RENDER
+    // -----------------------------
+    document.getElementById("result").innerHTML = `
+      <div class="card score">
+        <h2>${score}%</h2>
+        <p>Match Score</p>
+      </div>
+
+      <div class="grid">
+        <div class="card">
+          <h3>❌ Missing Skills</h3>
+          ${missingSkills.length 
+            ? missingSkills.map(s => `<span class="tag red">${s}</span>`).join("") 
+            : "<p>No major gaps</p>"}
+        </div>
+
+        <div class="card">
+          <h3>✅ Strengths</h3>
+          ${strengths.length 
+            ? strengths.map(s => `<span class="tag green">${s}</span>`).join("") 
+            : "<p>No strengths found</p>"}
+        </div>
+      </div>
+
+      <div class="card message">
+        <h3>💬 Recruiter Feedback</h3>
+        <p>${message || "No feedback available"}</p>
+      </div>
+
+      <div class="card">
+        <h3>🚀 How to Improve</h3>
+        ${
+          suggestions.length
+            ? suggestions.map(s => `<span class="tag">${s}</span>`).join("")
+            : "<p>No suggestions available</p>"
+        }
+      </div>
+    `;
+
+  } catch (error) {
+    console.error(error);
+    document.getElementById("result").innerHTML = "❌ Error: " + error.message;
+  }
+});
+
+</script>
+
+</body>
+</html>
